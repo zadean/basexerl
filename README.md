@@ -1,6 +1,6 @@
 # basexerl
 
-Erlang BaseX client
+Erlang BaseX client [![Build Status](https://travis-ci.org/zadean/basexerl.svg?branch=master)](https://travis-ci.org/zadean/basexerl)
 
 ### Examples
 
