@@ -21,6 +21,7 @@
 -define(QUERY    ,<<0>>).
 -define(CLOSE    ,<<2>>).
 -define(BIND     ,<<3>>).
+-define(RESULTS  ,<<4>>).
 -define(EXECUTE  ,<<5>>).
 -define(INFO     ,<<6>>).
 -define(OPTIONS  ,<<7>>).
@@ -101,6 +102,10 @@ handle_call({q_bind, Qid, Name, Value, Type}, _From, State) ->
              Name,  ?N,
              Value, ?N,
              Type,  ?N]);
+%% handle_call({q_results, Qid}, _From, State) -> 
+%%    do_query(State, 
+%%             [?RESULTS,
+%%              Qid, ?N]);
 handle_call({q_close, Qid}, _From, State) -> 
     do_query(State, 
              [?CLOSE,
@@ -191,7 +196,7 @@ do_command(State, Data) ->
    Info = read_socket(Sock),
    case okay(Sock) of
        ok ->
-           {reply, Info, State};
+           {reply, {ok, Info}, State};
        _ ->
            {reply, {error, Info}, State}
    end.
@@ -234,19 +239,25 @@ read_socket(Socket, Timeout, Buffer, DecByte) ->
                 true ->
                      case Byte of
                          [255] ->
+                             % add the marked byte
                              read_socket(Socket, Timeout, [Byte|Buffer], false);
                          [0] ->
+                             % add the marked byte
                              read_socket(Socket, Timeout, [Byte|Buffer], false);
                          _ ->
+                             % had a marker that should stay in the binary
                              read_socket(Socket, Timeout, [<<Byte,255>>|Buffer], false)
                      end;
                 false ->
                      case Byte of
                          [255] ->
+                             % mark the next byte
                              read_socket(Socket, Timeout, [Buffer], true);
                          [0] ->
+                             % done
                              lists:reverse(lists:flatten(Buffer));
                          _ ->
+                             % normal
                              read_socket(Socket, Timeout, [Byte|Buffer], false)
                      end
             end;
@@ -275,7 +286,7 @@ md5(String) ->
    MD5 = crypto:hash(md5,String),
    lists:flatten([io_lib:format("~2.16.0b", [X]) || <<X>> <= MD5]).
 
-
+% prefix all 0x00 and 0xff bytes with 0xff
 encode_bin(<<255,T/binary>>) ->
     [255,255|encode_bin(T)];
 encode_bin(<<0,T/binary>>) ->

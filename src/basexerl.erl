@@ -29,6 +29,7 @@
 -export([query/2, 
          q_bind/4, q_bind/5, 
          q_context/3,q_context/4, 
+         % q_results/2, 
          q_execute/2, 
          q_info/2, 
          q_options/2, 
@@ -112,6 +113,12 @@ q_context(Conn, Qid, Value, Type) ->
 %% returns {ok, Result}
 q_execute(Conn, Qid) ->
     gen_server:call(Conn, {q_execute, Qid}).
+
+%% Returns all resulting items as strings, prefixed by a single byte (\xx) 
+%% that represents the Type ID. 
+%% returns {ok, Result}
+%q_results(Conn, Qid) ->
+%    gen_server:call(Conn, {q_results, Qid}).
 
 %% Return query info in a string.
 %% returns {ok, Info}
