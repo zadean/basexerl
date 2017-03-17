@@ -38,12 +38,14 @@
 %% API functions
 %% ====================================================================
 -export([start/1, start_link/1]).
+-export([encode_bin/1]).
 
 start([Host, Port, User, Pass]) ->
     gen_server:start(?SERVER, [Host, Port, User, Pass], []).
 
 start_link([Host, Port, User, Pass]) ->
     gen_server:start_link(?SERVER, [Host, Port, User, Pass], []).
+
 
 
 %% ====================================================================
@@ -87,7 +89,7 @@ handle_call({store, Path, Input}, _From, State) ->
    do_command(State, 
               [?STORE,
                Path,  ?N,
-               Input, ?N]);
+               encode_bin(Input), ?N]);
 handle_call({query, Query}, _From, State) -> 
    do_query(State, 
             [?QUERY,
@@ -224,15 +226,29 @@ write_socket(Socket, Packet) ->
 read_socket(Socket) ->
     read_socket(Socket, 1000).
 read_socket(Socket, Timeout) ->
-    read_socket(Socket, Timeout, []).
-read_socket(Socket, Timeout, Buffer) ->
+    read_socket(Socket, Timeout, [], false).
+read_socket(Socket, Timeout, Buffer, DecByte) ->
     case gen_tcp:recv(Socket, 1, Timeout) of
         {ok, Byte} ->
-            case Byte of
-                [0] ->
-                    lists:flatten(lists:reverse(Buffer));
-                _ ->
-                    read_socket(Socket, Timeout, [Byte|Buffer])
+            case DecByte of 
+                true ->
+                     case Byte of
+                         [255] ->
+                             read_socket(Socket, Timeout, [Byte|Buffer], false);
+                         [0] ->
+                             read_socket(Socket, Timeout, [Byte|Buffer], false);
+                         _ ->
+                             read_socket(Socket, Timeout, [<<Byte,255>>|Buffer], false)
+                     end;
+                false ->
+                     case Byte of
+                         [255] ->
+                             read_socket(Socket, Timeout, [Buffer], true);
+                         [0] ->
+                             lists:reverse(lists:flatten(Buffer));
+                         _ ->
+                             read_socket(Socket, Timeout, [Byte|Buffer], false)
+                     end
             end;
         Other ->
             io:format("got ~p~n", [Other]),
@@ -258,3 +274,13 @@ md5(Res1, Res2, User, Pass) ->
 md5(String) -> 
    MD5 = crypto:hash(md5,String),
    lists:flatten([io_lib:format("~2.16.0b", [X]) || <<X>> <= MD5]).
+
+
+encode_bin(<<255,T/binary>>) ->
+    [255,255|encode_bin(T)];
+encode_bin(<<0,T/binary>>) ->
+    [255,0|encode_bin(T)];
+encode_bin(<<H,T/binary>>) ->
+    [H|encode_bin(T)];
+encode_bin(<<>>) -> [].
+
