@@ -5,20 +5,21 @@
 run() ->
    {ok, Db} = basexerl:connect(),
 
-   {ok, Info1} = basexerl:create(Db, "database"),
-   io:format("~s~n", [Info1]),
-   
    Bin = list_to_binary([<<X>> || X <- lists:seq(1,256)]),
    
+   {ok, Info1} = basexerl:create(Db, "database2"),
+   io:format("~s~n", [Info1]),
+
    {ok, Info2} = basexerl:store(Db, "test.bin", Bin),
    io:format("~s~n", [Info2]),
    
-   {ok, Bin2, Info3} = basexerl:execute(Db, "retrieve test.bin"),
-   io:format("~s~n", [Info3]),
+   {ok, Bin2} = basexerl:retrieve(Db, "test.bin"),
+   io:format("Bin : ~p~n", [Bin]),
+   io:format("Bin2: ~p~n", [Bin2]),
 
-   io:format("They match?: ~s~n", [matches(list_to_binary(Bin2))]),
+   io:format("They match?: ~s~n", [matches(Bin2)]),
 
-   {ok, Results4, Info7} = basexerl:execute(Db, "drop db database"), 
+   {ok, Results4, Info7} = basexerl:execute(Db, "drop db database2"), 
    io:format("~s~s", [Info7, Results4]),
    
    ok.
@@ -30,3 +31,4 @@ matches(Bin) ->
       _ ->
          false
    end.
+ 
