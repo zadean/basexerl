@@ -4,4 +4,4 @@ Erlang BaseX client [![Build Status](https://travis-ci.org/zadean/basexerl.svg?b
 
 ### Examples
 
-TODO - Usage examples and tests.
+Under the examples directory are a few example scripts. They can be compiled and then run with run/0.
