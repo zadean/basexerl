@@ -90,13 +90,13 @@ replace(Conn, Path, Input) ->
 store(Conn, Path, Input) when is_binary(Input) ->
     gen_server:call(Conn, {store, Path, Input}, ?TIMEOUT).
 
-%% ==========================================================
 %% Gets a binary resource from the open database.
 %% returns {ok, Binary}
 retrieve(Conn, Path) ->
     gen_server:call(Conn, {retrieve, Path}, ?TIMEOUT).
 
 
+%% ==========================================================
 %%                     XQuery stuff
 %% ==========================================================
 
