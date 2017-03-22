@@ -33,7 +33,6 @@
 %% API functions
 %% ====================================================================
 -export([start/1, start_link/1]).
--export([encode_bin/1]).
 
 start([Host, Port, User, Pass]) ->
     gen_server:start(?SERVER, [Host, Port, User, Pass], []).

@@ -39,6 +39,7 @@
          q_options/2, 
          q_close/2]).
 
+
 %% ==========================================================
 %%                  connection stuff
 %% ==========================================================
@@ -49,10 +50,10 @@ connect() ->
 connect(User, Pass) ->
    connect([], [], User, Pass).
 connect(Host, Port, User, Pass) ->
-   Host1 = nvl(Host, ?DEFHOST),
-   Port1 = nvl(Port, ?DEFPORT),
-   User1 = nvl(User, ?DEFUSER),
-   Pass1 = nvl(Pass, ?DEFPASS),
+   Host1 = bxe_util:nvl(Host, ?DEFHOST),
+   Port1 = bxe_util:nvl(Port, ?DEFPORT),
+   User1 = bxe_util:nvl(User, ?DEFUSER),
+   Pass1 = bxe_util:nvl(Pass, ?DEFPASS),
    bxe_client:start([Host1, Port1, User1, Pass1]).
 
 %% disconnects from the DB for the given connection Pid
@@ -144,12 +145,3 @@ q_options(Conn, Qid) ->
 %% returns {ok, Info}
 q_close(Conn, Qid) ->
     gen_server:call(Conn, {q_close, Qid}, ?TIMEOUT).
-
-%% ==========================================================
-%%                        helpers
-%% ==========================================================
-nvl([], Val2) -> Val2;
-nvl(Val1, _Val2) -> Val1.
-
-
-
