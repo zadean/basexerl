@@ -31,7 +31,7 @@
          retrieve/2]).
 
 -export([query/2, 
-         q_bind/4, q_bind/5, 
+         q_bind/3, q_bind/4, q_bind/5, 
          q_context/3,q_context/4, 
          q_results/2, 
          q_execute/2, 
@@ -107,13 +107,18 @@ query(Conn, Query) ->
     gen_server:call(Conn, {query, Query}, ?TIMEOUT).
 
 %% Bind a value to an external variable.
+%% Sequences for single variables should be in Name as a tuple with Name, then a list of tuples 
+%% {Value, Type} | {Value}: {"$varName", [{"123", "xs:integer"}, {"ABC"} ]}
 %% returns {ok, Info}
+q_bind(Conn, Qid, NamedSequence) ->
+    q_bind(Conn, Qid, NamedSequence, [], []).
 q_bind(Conn, Qid, Name, Value) ->
     q_bind(Conn, Qid, Name, Value, []).
 q_bind(Conn, Qid, Name, Value, Type) ->
     gen_server:call(Conn, {q_bind, Qid, Name, Value, Type}, ?TIMEOUT).
 
 %% Bind a value to the context item.
+%% Sequences for context should be in form {context, [{Value, Type} | {Value}]}
 %% returns {ok, Info}
 q_context(Conn, Qid, Value) ->
     q_context(Conn, Qid, Value, []).

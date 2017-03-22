@@ -99,12 +99,25 @@ handle_call({query, Query}, _From, State) ->
             [?QUERY,
              Query, ?N]);
 handle_call({q_bind, Qid, Name, Value, Type}, _From, State) -> 
-   do_query(State, 
-            [?BIND,
-             Qid,   ?N,
-             Name,  ?N,
-             Value, ?N,
-             Type,  ?N]);
+   % check if a sequence variable
+   case is_tuple(Name) of
+      true ->
+         {Nm, Vals} = Name,
+         Cmd = encode_seq_var(Vals),
+         do_query(State, 
+                  [?BIND,
+                   Qid,   ?N,
+                   Nm,    ?N,
+                   Cmd,   ?N,
+                   ?N]);
+      _ ->
+         do_query(State, 
+                  [?BIND,
+                   Qid,   ?N,
+                   Name,  ?N,
+                   Value, ?N,
+                   Type,  ?N])
+   end;
 handle_call({q_results, Qid}, _From, State) -> 
    do_result_set(State,
                  [?RESULTS,
@@ -114,11 +127,23 @@ handle_call({q_close, Qid}, _From, State) ->
              [?CLOSE,
               Qid, ?N]);
 handle_call({q_context, Qid, Value, Type}, _From, State) -> 
-    do_query(State, 
-             [?CONTEXT,
-              Qid,   ?N,
-              Value, ?N,
-              Type,  ?N]);
+   % check if a sequence variable
+   case is_tuple(Value) of
+      true ->
+         {context, Vals} = Value,
+         Cmd = encode_seq_var(Vals),   
+         do_query(State, 
+                  [?CONTEXT,
+                   Qid,   ?N,
+                   Cmd,   ?N,
+                   ?N]);
+      _ ->
+         do_query(State, 
+                  [?CONTEXT,
+                   Qid,   ?N,
+                   Value, ?N,
+                   Type,  ?N])
+   end;
 handle_call({q_execute, Qid}, _From, State) -> 
    do_query(State, 
             [?EXECUTE,
@@ -301,7 +326,7 @@ read_socket(Sock) ->
             false ->
                <<Packet/binary, (read_socket(Sock))/binary>>;
             {ok, Data} ->
-               <<Packet/binary, Data:8/binary, (read_socket(Sock))/binary>>;
+               <<Packet/binary, Data/binary, (read_socket(Sock))/binary>>;
             _ ->
                Packet
         end;
@@ -316,9 +341,9 @@ is_end(_Sock, ?BUFFER, _Char) ->
 is_end(_Sock, _Len, Char) when Char > 1 ->
    false;
 is_end(Sock, _Len, _Char) ->
-   % now make absolutely sure, should only happen with large 
-   % packets with 0x00 or 0xff in them
-   case gen_tcp:recv(Sock, 0, 10) of
+   % now make absolutely sure, should only need to happen with large 
+   % packets with 0x00 or 0xff in them, or short fast stuff
+   case gen_tcp:recv(Sock, 0, 5) of
       {ok, Test} ->
          {ok, Test};
       _ ->
@@ -382,10 +407,31 @@ decode_bin(<<H,T/binary>>) ->
    [H|decode_bin(T)];
 decode_bin(<<>>) -> [].
 
+
+encode_seq_var(Vals) ->
+   Concat = fun(X) ->
+                 case X of
+                    {Val, Type} ->
+                       [Val, 2, Type];
+                    {Val} ->
+                       [Val, 2]
+                 end
+            end,
+   List = [Concat(E) || E <- Vals],
+   Join = list_join(List, [1]),
+   lists:flatten(Join).
+
+list_join([H|T], Sep) ->
+   [H|list_join_1(T, Sep)].
+list_join_1([H|T], Sep) ->
+   [Sep,H|list_join_1(T, Sep)];
+list_join_1([], _) ->
+   [].
+
 type_result(<<>>) ->
     [];
 type_result(<<H,T/binary>>) ->
-    {get_type(H), T}.
+    {T, get_type(H)}.
 
 get_type(7) -> 'function item';
 get_type(8) -> 'node()';
