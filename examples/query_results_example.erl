@@ -20,13 +20,16 @@ run() ->
                 "comment {'text - comment'}, "
                 "fn:substring('something', 1, 4), "
                 "fn:substring(?, 1, 4), "
-                "('Apple', 'Pear', 'Peach') "
+                "('Apple', 'Pear', 'Peach'), trace('some text', 'hidden') "
                ]),
 
    {ok, _Info} = basexerl:q_bind(Db, Qid, "$name", "number", "xs:string"),
    
    {ok, Results} = basexerl:q_results(Db, Qid),
-    io:format("~p~n", [Results]),
+   {ok, _Info} = basexerl:q_bind(Db, Qid, "$name", "NaN", "xs:string"),
+   {ok, Results2} = basexerl:q_results(Db, Qid),
+   io:format("~p~n", [Results]),
+   io:format("~p~n", [Results2]),
    _ = basexerl:disconnect(Db),
    ok.
 
