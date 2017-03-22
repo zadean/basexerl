@@ -29,14 +29,22 @@ base64_to_utf8(Base64) when is_list(Base64) ->
    base64:decode_to_string(Base64).
 
 utf8_to_hex(String) when is_binary(String) ->
-   utf8_to_hex_l(String);
+   HexList = utf8_to_hex_l(String),
+   list_to_binary(HexList);
 utf8_to_hex(String) when is_list(String) ->
-   list_to_binary(utf8_to_hex_l(String)).
+   Bin = list_to_binary(String),
+   HexList = utf8_to_hex_l(Bin),
+   BinHex = list_to_binary(HexList),
+   binary_to_list(BinHex). 
 
 hex_to_utf8(Hex) when is_binary(Hex) ->
-   hex_to_utf8_l(Hex);
+   Str = hex_to_utf8_l(Hex),
+   list_to_binary(Str);
 hex_to_utf8(Hex) when is_list(Hex) ->
-   list_to_binary(hex_to_utf8_l(Hex)).
+   Bin = list_to_binary(Hex),
+   StrList = hex_to_utf8_l(Bin),
+   BinStr = list_to_binary(StrList),
+   binary_to_list(BinStr). 
 
 
 %% ==========================================================
