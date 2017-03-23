@@ -9,3 +9,4 @@ ebin
 .project
 .settings
 _build
+*.jar
