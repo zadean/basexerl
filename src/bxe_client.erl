@@ -60,6 +60,22 @@ init([Host, Port, User, Pass]) ->
             {stop, Err}
     end.
 
+reconnect(#state{ohost = Host, 
+                 oport = Port, 
+                 ouser = User, 
+                 opass = Pass}) ->
+    case open_socket({Host, Port}) of
+        {ok, Sock} ->
+            State = #state{ohost = Host, 
+                           oport = Port, 
+                           ouser = User, 
+                           opass = Pass, 
+                           socket = Sock},
+            connect(State);
+        Err ->
+            {stop, Err}
+    end.
+
 % handle_call/3
 handle_call({add, Path, Input}, _From, State) -> 
    do_command(State, 
@@ -212,10 +228,16 @@ do_execute(State, Data) ->
    Raw = read_socket(Sock),
    case okay(Raw) of
        {ok, Response} ->
-           [Result, Info, _] = binary:split(Response, <<0>>, [global]),
-           {reply, {ok, Result, Info}, State};
+          [Result, Info, _] = binary:split(Response, <<0>>, [global]),
+          {reply, {ok, Result, Info}, State};
        {error, Info} ->
-           {reply, {error, Info}, State}
+          case Info of
+             econnaborted ->
+                {ok, NewState} = reconnect(State),
+                do_execute(NewState, Data);
+             _ ->
+                {reply, {error, Info}, State}
+          end
    end.
 
 do_command(State, Data) ->
@@ -227,7 +249,13 @@ do_command(State, Data) ->
            [Info, _] = binary:split(Response, <<0>>, []),
            {reply, {ok, Info}, State};
        {error, Info} ->
-           {reply, {error, Info}, State}
+          case Info of
+             econnaborted ->
+                {ok, NewState} = reconnect(State),
+                do_command(NewState, Data);
+             _ ->
+                {reply, {error, Info}, State}
+          end
    end.
 
 do_retrieve(State, Data) ->
@@ -249,7 +277,13 @@ do_retrieve(State, Data) ->
           Bin3 = list_to_binary(List3),
           {reply, {ok, Bin3}, State};
        {error, Info} ->
-           {reply, {error, Info}, State}
+          case Info of
+             econnaborted ->
+                {ok, NewState} = reconnect(State),
+                do_retrieve(NewState, Data);
+             _ ->
+                {reply, {error, Info}, State}
+          end
    end.
 
 do_query(State, Data) ->
@@ -263,7 +297,13 @@ do_query(State, Data) ->
                    [Reply, _] = binary:split(Response, <<0>>, []),
                    {reply, {ok, Reply}, State};
                {error, Info} ->
-                   {reply, {error, Info}, State}
+                   case Info of
+                      econnaborted ->
+                         {ok, NewState} = reconnect(State),
+                         do_query(NewState, Data);
+                      _ ->
+                         {reply, {error, Info}, State}
+                   end
            end;
        _ ->
            [_, Error] = binary:split(Raw, <<1>>, []),
@@ -283,7 +323,13 @@ do_result_set(State, Data) ->
                    TypedList = [ type_result(E) || E <- List, bit_size(E) > 0 ],
                    {reply, {ok, TypedList}, State};
                {error, Info} ->
-                   {reply, {error, Info}, State}
+                   case Info of
+                      econnaborted ->
+                         {ok, NewState} = reconnect(State),
+                         do_result_set(NewState, Data);
+                      _ ->
+                         {reply, {error, Info}, State}
+                   end
            end;
        _ ->
            [_, Error] = binary:split(Raw, <<1>>, []),
@@ -355,6 +401,8 @@ is_end(Sock, _Len, _Char) ->
 %% get the last byte to show if ok or error
 okay(<<>>) -> 
    {error, <<"no data",1,0>>};
+okay({error, Reason}) -> 
+   {error, Reason};
 okay(Packet) -> 
    Sz = byte_size(Packet),
    Stat = binary:at(Packet, Sz-1),

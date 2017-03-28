@@ -65,34 +65,34 @@ disconnect(Conn) ->
 %% ==========================================================
 
 %% Executes a command and returns the result.
-%% returns {ok, Result, Info}
+%% returns {ok, Result, Info} | {error, Info}
 execute(Conn, Command) ->
     gen_server:call(Conn, {execute, Command}, ?TIMEOUT).
 
 %% Creates a database.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 create(Conn, Name) ->
     create(Conn, Name, []).
 create(Conn, Name, Input) ->
     gen_server:call(Conn, {create, Name, Input}, ?TIMEOUT).
 
 %% Adds a document to a database.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 add(Conn, Path, Input) ->
     gen_server:call(Conn, {add, Path, Input}, ?TIMEOUT).
 
 %% Replaces a document in a database.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 replace(Conn, Path, Input) ->
     gen_server:call(Conn, {replace, Path, Input}, ?TIMEOUT).
 
 %% Stores a binary resource in a database.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 store(Conn, Path, Input) when is_binary(Input) ->
     gen_server:call(Conn, {store, Path, Input}, ?TIMEOUT).
 
 %% Gets a binary resource from the open database.
-%% returns {ok, Binary}
+%% returns {ok, Binary} | {error, Info}
 retrieve(Conn, Path) ->
     gen_server:call(Conn, {retrieve, Path}, ?TIMEOUT).
 
@@ -102,14 +102,14 @@ retrieve(Conn, Path) ->
 %% ==========================================================
 
 %% get the ID for this query
-%% returns {ok, Qid}
+%% returns {ok, Qid} | {error, Info}
 query(Conn, Query) ->
     gen_server:call(Conn, {query, Query}, ?TIMEOUT).
 
 %% Bind a value to an external variable.
 %% Sequences for single variables should be in Name as a tuple with Name, then a list of tuples 
 %% {Value, Type} | {Value}: {"$varName", [{"123", "xs:integer"}, {"ABC"} ]}
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 q_bind(Conn, Qid, NamedSequence) ->
     q_bind(Conn, Qid, NamedSequence, [], []).
 q_bind(Conn, Qid, Name, Value) ->
@@ -119,34 +119,34 @@ q_bind(Conn, Qid, Name, Value, Type) ->
 
 %% Bind a value to the context item.
 %% Sequences for context should be in form {context, [{Value, Type} | {Value}]}
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 q_context(Conn, Qid, Value) ->
     q_context(Conn, Qid, Value, []).
 q_context(Conn, Qid, Value, Type) ->
     gen_server:call(Conn, {q_context, Qid, Value, Type}, ?TIMEOUT).
 
 %% Return the entire result of the query.
-%% returns {ok, Result}
+%% returns {ok, Result} | {error, Info}
 q_execute(Conn, Qid) ->
     gen_server:call(Conn, {q_execute, Qid}, ?TIMEOUT).
 
 %% Returns all resulting items as strings, prefixed by a single byte (\xx) 
 %% that represents the Type ID. 
-%% returns {ok, Result}
+%% returns {ok, Result} | {error, Info}
 q_results(Conn, Qid) ->
     gen_server:call(Conn, {q_results, Qid}, ?TIMEOUT).
 
 %% Return query info in a string.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 q_info(Conn, Qid) ->
     gen_server:call(Conn, {q_info, Qid}, ?TIMEOUT).
 
 %% Return serialization parameters in a string.
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 q_options(Conn, Qid) ->
     gen_server:call(Conn, {q_options, Qid}, ?TIMEOUT).
 
 %% Closes the query. It's a good idea to do this!
-%% returns {ok, Info}
+%% returns {ok, Info} | {error, Info}
 q_close(Conn, Qid) ->
     gen_server:call(Conn, {q_close, Qid}, ?TIMEOUT).
