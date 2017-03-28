@@ -16,7 +16,7 @@
 
 -define(N      , <<0>>). 
 
--define(TCP_OPTIONS, [binary,
+-define(TCP_OPTIONS, [binary, 
                       {packet, 0}, 
                       {buffer, ?BUFFER},
                       {active, false}, 
@@ -340,15 +340,17 @@ is_end(_Sock, ?BUFFER, _Char) ->
    false;
 is_end(_Sock, _Len, Char) when Char > 1 ->
    false;
+is_end(_Sock, Len, _Char) when Len < 1024 ->
+   true;
 is_end(Sock, _Len, _Char) ->
    % now make absolutely sure, should only need to happen with large 
    % packets with 0x00 or 0xff in them, or short fast stuff
-   case gen_tcp:recv(Sock, 0, 5) of
+   case gen_tcp:recv(Sock, 0, 1) of
       {ok, Test} ->
          {ok, Test};
       _ ->
          true
-   end.
+    end.
 
 %% get the last byte to show if ok or error
 okay(<<>>) -> 
