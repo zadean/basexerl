@@ -209,13 +209,13 @@ connect(State) ->
    User = State#state.ouser,
    Pass = State#state.opass,
    Sock = State#state.socket,
-   Magic = read_socket(Sock),
+   Magic = list_to_binary(read_socket(Sock)),
    {ok, Cookie} = okay(Magic),
    [Res1, Res2] = binary:split(Cookie, <<":">>),
    Hash = md5(Res1, Res2, User, Pass),
    ok = write_socket(Sock, Hash),
    case read_socket(Sock) of
-      ?N -> 
+      [?N] -> 
           {ok, State};
       _ -> 
           close_socket(Sock),
@@ -225,7 +225,7 @@ connect(State) ->
 do_execute(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = read_socket(Sock),
+   Raw = list_to_binary(read_socket(Sock)),
    case okay(Raw) of
        {ok, Response} ->
           [Result, Info, _] = binary:split(Response, <<0>>, [global]),
@@ -233,8 +233,13 @@ do_execute(State, Data) ->
        {error, Info} ->
           case Info of
              econnaborted ->
-                {ok, NewState} = reconnect(State),
-                do_execute(NewState, Data);
+                case reconnect(State) of
+                   {ok, NewState} ->
+                      do_execute(NewState, Data);
+                   Err ->
+                      %% TODO wait for server to come up again
+                      {reply, {error, Err}, State#state{socket = undefined}}
+                end;
              _ ->
                 {reply, {error, Info}, State}
           end
@@ -243,7 +248,7 @@ do_execute(State, Data) ->
 do_command(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = read_socket(Sock),
+   Raw = list_to_binary(read_socket(Sock)),
    case okay(Raw) of
        {ok, Response} ->
            [Info, _] = binary:split(Response, <<0>>, []),
@@ -261,7 +266,7 @@ do_command(State, Data) ->
 do_retrieve(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = read_socket(Sock),
+   Raw = list_to_binary(read_socket(Sock)),
    case okay(Raw) of
        {ok, Response} ->
           % remove okay for info
@@ -289,7 +294,7 @@ do_retrieve(State, Data) ->
 do_query(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = read_socket(Sock),
+   Raw = list_to_binary(read_socket(Sock)),
    case binary:match(Raw, <<1>>) of
        nomatch ->
            case okay(Raw) of
@@ -314,7 +319,7 @@ do_query(State, Data) ->
 do_result_set(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = read_socket(Sock),
+   Raw = list_to_binary(read_socket(Sock)),
    case binary:match(Raw, <<1>>) of
        nomatch ->
            case okay(Raw) of
@@ -370,11 +375,11 @@ read_socket(Sock) ->
          Lt = binary:last(Packet),
          case is_end(Sock, Sz, Lt) of
             false ->
-               <<Packet/binary, (read_socket(Sock))/binary>>;
+               [Packet | read_socket(Sock)];
             {ok, Data} ->
-               <<Packet/binary, Data/binary, (read_socket(Sock))/binary>>;
+               [<<Packet/binary, Data/binary>> | read_socket(Sock)];
             _ ->
-               Packet
+               [Packet]
         end;
     {error, timeout} -> 
         [];
