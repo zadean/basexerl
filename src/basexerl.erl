@@ -149,4 +149,4 @@ q_options(Conn, Qid) ->
 %% Closes the query. It's a good idea to do this!
 %% returns {ok, Info} | {error, Info}
 q_close(Conn, Qid) ->
-    gen_server:call(Conn, {q_close, Qid}, ?TIMEOUT).
+    gen_server:cast(Conn, {q_close, Qid}).
