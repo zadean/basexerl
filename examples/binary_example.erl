@@ -3,7 +3,7 @@
 -export([run/0]).
 
 run() ->
-   {ok, Db} = basexerl:connect(),
+   {ok, Db} = basexerl:connect("localhost", 6001, "admin", "admin"),
 
    Bin = list_to_binary([<<X>> || X <- lists:seq(1,256)]),
    
@@ -19,8 +19,8 @@ run() ->
 
    io:format("They match?: ~s~n", [matches(Bin2)]),
 
-   {ok, Results4, Info7} = basexerl:execute(Db, "drop db database2"), 
-   io:format("~s~s", [Info7, Results4]),
+   {ok, Info3} = basexerl:execute(Db, "drop db database2"), 
+   io:format("~s~n", [Info3]),
    
    ok.
 

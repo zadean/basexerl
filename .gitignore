@@ -10,3 +10,4 @@ ebin
 .settings
 _build
 *.jar
+/tmp/

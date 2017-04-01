@@ -61,29 +61,22 @@ init([Host, Port, User, Pass]) ->
     end.
 
 reconnect(#state{ohost = Host, 
-                 oport = Port, 
-                 ouser = User, 
-                 opass = Pass}) ->
+                 oport = Port} = State) ->
     case open_socket({Host, Port}) of
         {ok, Sock} ->
-            State = #state{ohost = Host, 
-                           oport = Port, 
-                           ouser = User, 
-                           opass = Pass, 
-                           socket = Sock},
-            connect(State);
+            connect(State#state{socket = Sock});
         Err ->
             {stop, Err}
     end.
 
 % handle_call/3
 handle_call({add, Path, Input}, _From, State) -> 
-   do_command(State, 
+   do_execute(State, 
               [?ADD,
                Path,  ?N,
                Input, ?N]);
 handle_call({create, Name, Input}, _From, State) -> 
-   do_command(State, 
+   do_execute(State, 
               [?CREATE,
                Name,  ?N,
                Input, ?N]);
@@ -91,75 +84,59 @@ handle_call({execute, Command}, _From, State) ->
    do_execute(State, 
               [Command,?N]);
 handle_call({replace, Path, Input}, _From, State) -> 
-   do_command(State, 
+   do_execute(State, 
               [?REPLACE,
                Path,  ?N,
                Input, ?N]);
 handle_call({store, Path, Input}, _From, State) -> 
    Bin = encode_bin(Input),
-   do_command(State, 
+   do_execute(State, 
               [?STORE,
                Path,  ?N,
                Bin, ?N]);
 handle_call({retrieve, Path}, _From, State) -> 
-   case do_retrieve(State, 
+   do_retrieve(State, 
               [?RETRIEVE,
-               Path,  ?N]) of
-      {ok, Bin} ->
-         {ok, Bin};
-      Other ->
-         Other
-   end;
+               Path,  ?N]);
 handle_call({query, Query}, _From, State) -> 
    do_query(State, 
             [?QUERY,
              Query, ?N]);
+handle_call({q_bind, Qid, Name, _Value, _Type}, _From, State) when is_tuple(Name) -> 
+   {Nm, Vals} = Name,
+   Cmd = encode_seq_var(Vals),
+   do_query(State, 
+            [?BIND,
+             Qid,   ?N,
+             Nm,    ?N,
+             Cmd,   ?N,
+             ?N]);
 handle_call({q_bind, Qid, Name, Value, Type}, _From, State) -> 
-   % check if a sequence variable
-   case is_tuple(Name) of
-      true ->
-         {Nm, Vals} = Name,
-         Cmd = encode_seq_var(Vals),
-         do_query(State, 
-                  [?BIND,
-                   Qid,   ?N,
-                   Nm,    ?N,
-                   Cmd,   ?N,
-                   ?N]);
-      _ ->
-         do_query(State, 
-                  [?BIND,
-                   Qid,   ?N,
-                   Name,  ?N,
-                   Value, ?N,
-                   Type,  ?N])
-   end;
+   do_query(State, 
+            [?BIND,
+             Qid,   ?N,
+             Name,  ?N,
+             Value, ?N,
+             Type,  ?N]);
 handle_call({q_results, Qid}, _From, State) -> 
-   do_result_set(State,
-                 [?RESULTS,
-                  Qid, ?N]);
-handle_call({q_close, Qid}, _From, State) -> 
-    do_query(State, 
-             [?CLOSE,
-              Qid, ?N]);
+   do_query(State,
+            [?RESULTS,
+             Qid, ?N],
+            true);
+handle_call({q_context, Qid, Value, _Type}, _From, State) when is_tuple(Value) -> 
+   {context, Vals} = Value,
+   Cmd = encode_seq_var(Vals),   
+   do_query(State, 
+            [?CONTEXT,
+             Qid,   ?N,
+             Cmd,   ?N,
+             ?N]);
 handle_call({q_context, Qid, Value, Type}, _From, State) -> 
-   % check if a sequence variable
-   case is_tuple(Value) of
-      true ->
-         {context, Vals} = Value,
-         Cmd = encode_seq_var(Vals),   
-         do_query(State, 
-                  [?CONTEXT,
-                   Qid,   ?N,
-                   Cmd,   ?N,
-                   ?N]);
-      _ ->
-         do_query(State, 
-                  [?CONTEXT,
-                   Qid,   ?N,
-                   Value, ?N,
-                   Type,  ?N])
-   end;
+   do_query(State, 
+            [?CONTEXT,
+             Qid,   ?N,
+             Value, ?N,
+             Type,  ?N]);
 handle_call({q_execute, Qid}, _From, State) -> 
    do_query(State, 
             [?EXECUTE,
@@ -182,6 +159,11 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 %% handle_cast/2
+handle_cast({q_close, Qid}, State) ->
+    do_query(State, 
+             [?CLOSE,
+              Qid, ?N]),
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -205,17 +187,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% ====================================================================
 
 %log in to the server
-connect(State) ->
-   User = State#state.ouser,
-   Pass = State#state.opass,
-   Sock = State#state.socket,
-   Magic = list_to_binary(read_socket(Sock)),
-   {ok, Cookie} = okay(Magic),
+connect(#state{ouser = User,
+               opass = Pass,
+               socket = Sock} = State) ->
+   Cookie = list_to_binary(read_socket(Sock)),
    [Res1, Res2] = binary:split(Cookie, <<":">>),
    Hash = md5(Res1, Res2, User, Pass),
    ok = write_socket(Sock, Hash),
    case read_socket(Sock) of
-      [?N] -> 
+      [] -> 
           {ok, State};
       _ -> 
           close_socket(Sock),
@@ -225,48 +205,31 @@ connect(State) ->
 do_execute(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock)),
-   case okay(Raw) of
-       {ok, Response} ->
-          [Result, Info, _] = binary:split(Response, <<0>>, [global]),
-          {reply, {ok, Result, Info}, State};
-       {error, Info} ->
-          case Info of
-             econnaborted ->
-                case reconnect(State) of
-                   {ok, NewState} ->
-                      do_execute(NewState, Data);
-                   Err ->
-                      %% TODO wait for server to come up again
-                      {reply, {error, Err}, State#state{socket = undefined}}
-                end;
-             _ ->
-                {reply, {error, Info}, State}
-          end
-   end.
-
-do_command(State, Data) ->
-   Sock = State#state.socket,
-   ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock)),
-   case okay(Raw) of
-       {ok, Response} ->
-           [Info, _] = binary:split(Response, <<0>>, []),
-           {reply, {ok, Info}, State};
-       {error, Info} ->
-          case Info of
-             econnaborted ->
-                {ok, NewState} = reconnect(State),
-                do_command(NewState, Data);
-             _ ->
-                {reply, {error, Info}, State}
-          end
+   case read_socket(Sock) of
+      {error, econnaborted} ->
+         {ok, NewState} = reconnect(State),
+         do_execute(NewState, Data);
+      {error, Error} ->
+         {reply, {error, Error}, State};
+      BinList ->
+         case has_error(BinList) of
+            false ->
+               case BinList of
+                  [Result, Info] ->
+                     {reply, {ok, Result, Info}, State};
+                  [Result] ->
+                     {reply, {ok, Result}, State}
+               end;
+            _ ->
+               [Error, _] = BinList, 
+               {reply, {error, Error}, State}
+         end
    end.
 
 do_retrieve(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock)),
+   Raw = list_to_binary(read_socket(Sock, binary)),
    case okay(Raw) of
        {ok, Response} ->
           % remove okay for info
@@ -287,60 +250,59 @@ do_retrieve(State, Data) ->
                 {ok, NewState} = reconnect(State),
                 do_retrieve(NewState, Data);
              _ ->
-                {reply, {error, Info}, State}
+               [Info2] = binary:split(Info, <<0>>, [global, trim_all]),
+               {reply, {error, Info2}, State}
           end
    end.
 
 do_query(State, Data) ->
+   do_query(State, Data, false).
+
+do_query(State, Data, AsList) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock)),
-   case binary:match(Raw, <<1>>) of
-       nomatch ->
-           case okay(Raw) of
-               {ok, Response} ->
-                   [Reply, _] = binary:split(Response, <<0>>, []),
-                   {reply, {ok, Reply}, State};
-               {error, Info} ->
-                   case Info of
-                      econnaborted ->
-                         {ok, NewState} = reconnect(State),
-                         do_query(NewState, Data);
-                      _ ->
-                         {reply, {error, Info}, State}
-                   end
-           end;
-       _ ->
-           [_, Error] = binary:split(Raw, <<1>>, []),
-           [Info, _] = binary:split(Error, <<0>>, []),
-           {reply, {error, Info}, State}
+   case read_socket(Sock) of
+      {error, econnaborted} ->
+         {ok, NewState} = reconnect(State),
+         do_query(NewState, Data, AsList);
+      {error, Error} ->
+         {reply, {error, Error}, State};
+      BinList ->
+         %BinList = ll_to_lb(RawList),
+         case get_error(BinList) of
+            [] ->
+               case AsList of
+                  true ->
+                     TypedList = [ type_result(E) || E <- BinList, bit_size(E) > 0 ],
+                     {reply, {ok, TypedList}, State};
+                  _ ->
+                     {reply, {ok, BinList}, State}
+               end;
+            Error ->
+               Error1 = binary:part(Error, 1, byte_size(Error) -1),
+               {reply, {error, Error1}, State}
+         end
    end.
 
-do_result_set(State, Data) ->
-   Sock = State#state.socket,
-   ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock)),
-   case binary:match(Raw, <<1>>) of
-       nomatch ->
-           case okay(Raw) of
-               {ok, Response} ->
-                   List = binary:split(Response, <<0>>, [global]),
-                   TypedList = [ type_result(E) || E <- List, bit_size(E) > 0 ],
-                   {reply, {ok, TypedList}, State};
-               {error, Info} ->
-                   case Info of
-                      econnaborted ->
-                         {ok, NewState} = reconnect(State),
-                         do_result_set(NewState, Data);
-                      _ ->
-                         {reply, {error, Info}, State}
-                   end
-           end;
-       _ ->
-           [_, Error] = binary:split(Raw, <<1>>, []),
-           [Info, _] = binary:split(Error, <<0>>, []),
-           {reply, {error, Info}, State}
-   end.
+has_error([]) ->
+   [];
+has_error(List) ->
+   Fn = fun(<<>>) ->
+              false;
+           (Bin) ->
+              binary:first(Bin) == 1
+        end,
+   lists:any(Fn, List).
+
+get_error([]) ->
+   [];
+get_error(List) ->
+   Fn = fun(<<>>) ->
+              false;
+           (Bin) ->
+              binary:first(Bin) == 1
+        end,
+   lists:filter(Fn, List).
 
 % {ok, Sock} | {error, Error}
 open_socket({Host, Port}) ->
@@ -367,13 +329,77 @@ write_socket(Socket, Rest) ->
    write_socket(Socket, []).
 
 read_socket(Sock) ->
-   case gen_tcp:recv(Sock, 0, 5000) of
-      {ok, <<>>} ->
-         <<>>;
+   List = read_socket1(Sock, <<>>, []),
+   lists:reverse(List).
+
+read_socket1(Sock, TmpAcc, Acc) ->
+   case gen_tcp:recv(Sock, 0, 1000) of
       {ok, Packet} ->
-         Sz = byte_size(Packet),
-         Lt = binary:last(Packet),
-         case is_end(Sock, Sz, Lt) of
+         Size = byte_size(Packet),
+         Tail = binary:last(Packet),
+         % when there is maybe more, add it
+         {Packet1, Tail1, End} =   case is_end(Sock, Size, Tail) of
+                                     {ok, Data} ->
+                                         Packet2 = <<Packet/binary, Data/binary>>,
+                                         Tail2   = binary:last(Packet2),
+                                         {Packet2, Tail2, false};
+                                      I ->
+                                         {Packet, Tail, I}
+                                   end,
+         % split the packet by 0
+         List = binary:split(Packet1, <<0>>, [global, trim_all]),
+         % concat the Acc and the first packet part, if any
+         ListLen = length(List),
+         TmpAcc1 = case ListLen of
+                      0 ->
+                         TmpAcc;
+                      _ ->
+                         <<TmpAcc/binary, (lists:nth(1, List))/binary>>
+                   end,
+         Sublist = fun(Alist, Len, Right) when (Len  - Right) > 0 ->
+                         lists:sublist(Alist, 2, (Len - Right));
+                      (_, _, _) ->
+                         []
+                   end,
+         case {End, TmpAcc1, Tail1} of
+            {true, <<>>, _} ->
+               Sub = Sublist(List, ListLen, 1),
+               prepend(Sub, Acc);
+            {true, _, _} ->
+               Sub = Sublist(List, ListLen, 1),
+               % temp acc finished so add to list
+               List1 = [TmpAcc1 | Sub],
+               prepend(List1, Acc);
+            {false, _, 0} -> 
+               Sub = Sublist(List, ListLen, 1),
+               % temp acc finished so add to list
+               List1 = [TmpAcc1 | Sub],
+               NewAcc = prepend(List1, Acc),
+               read_socket1(Sock, <<>>, NewAcc);
+            {false, _, _} -> 
+               case Sublist(List, ListLen, 2) of
+                  [] ->
+                     % nothing new to add
+                     read_socket1(Sock, TmpAcc1, Acc);
+                  Sub ->
+                     % temp acc finished so add to list
+                     List1 = [TmpAcc1 | Sub],
+                     NewAcc = prepend(List1, Acc),
+                     read_socket1(Sock, lists:last(List), NewAcc)
+               end
+         end;
+   {error, timeout} -> 
+      prepend([TmpAcc], Acc);
+   Err -> 
+      Err
+   end.
+
+read_socket(Sock, binary) ->
+   case gen_tcp:recv(Sock, 0, 5000) of
+      {ok, Packet} ->
+         Size = byte_size(Packet),
+         Tail = binary:last(Packet),
+         case is_end(Sock, Size, Tail) of
             false ->
                [Packet | read_socket(Sock)];
             {ok, Data} ->
@@ -387,18 +413,19 @@ read_socket(Sock) ->
         Err
    end.
 
-is_end(_Sock, ?BUFFER, _Char) ->
+is_end(_Sock, ?BUFFER, Char) when Char =/= 0 -> 
+   % full sized packet, this can cause a problem when it so happens that the last byte is 0
    false;
-is_end(_Sock, _Len, Char) when Char > 1 ->
+is_end(_Sock, _Len, Char) when Char > 1 -> % some errors can end with 1
    false;
-is_end(_Sock, Len, _Char) when Len < 1024 ->
+is_end(_Sock, Len, _Char) when Len < 1024 -> % too short
    true;
 is_end(Sock, _Len, _Char) ->
    % now make absolutely sure, should only need to happen with large 
-   % packets with 0x00 or 0xff in them, or short fast stuff
+   % packets with 0x00 in them as the last byte read.
    case gen_tcp:recv(Sock, 0, 1) of
-      {ok, Test} ->
-         {ok, Test};
+      {ok, _} = T ->
+         T;
       _ ->
          true
     end.
@@ -409,13 +436,13 @@ okay(<<>>) ->
 okay({error, Reason}) -> 
    {error, Reason};
 okay(Packet) -> 
-   Sz = byte_size(Packet),
-   Stat = binary:at(Packet, Sz-1),
-   Data = case Sz of 
+   Size = byte_size(Packet),
+   Stat = binary:last(Packet),
+   Data = case Size of 
             0 ->
                <<>>;
             _ ->
-               binary_part(Packet, 0, (Sz-1))
+               binary_part(Packet, 0, (Size-1))
           end,
    case Stat of 
        0 ->
@@ -464,16 +491,13 @@ decode_bin(<<>>) -> [].
 
 
 encode_seq_var(Vals) ->
-   Concat = fun(X) ->
-                 case X of
-                    {Val, Type} ->
-                       [Val, 2, Type];
-                    {Val} ->
-                       [Val, 2]
-                 end
+   Concat = fun({Val, Type}) ->
+                  [Val, 2, Type];
+               ({Val}) ->
+                  [Val, 2]
             end,
    List = [Concat(E) || E <- Vals],
-   Join = list_join(List, [1]),
+   Join = list_join(List, 1),
    lists:flatten(Join).
 
 list_join([H|T], Sep) ->
@@ -482,6 +506,11 @@ list_join_1([H|T], Sep) ->
    [Sep,H|list_join_1(T, Sep)];
 list_join_1([], _) ->
    [].
+
+prepend([], List2) ->
+   List2;
+prepend([H|T], List2) ->
+   prepend(T, [H|List2]).
 
 type_result(<<>>) ->
     [];

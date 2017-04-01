@@ -14,16 +14,16 @@ run() ->
    {ok, Info3} = basexerl:add(Db, "universe.xml", "<x>Hello Universe!</x>"),
    io:format("~s~n", [Info3]),
    
-   {ok, Results2, Info4} = basexerl:execute(Db, "xquery collection('database')"),
-   io:format("~s~s~n", [Info4, Results2]),
+   {ok, Info4} = basexerl:execute(Db, "xquery collection('database')"),
+   io:format("~s~n", [Info4]),
    
    {ok, Info5} = basexerl:replace(Db, "universe.xml", "<x>Hello Replacement!</x>"),
    io:format("~s~n", [Info5]),
    
-   {ok, Results3, Info6} = basexerl:execute(Db, "xquery collection('database')"), 
-   io:format("~s~s~n", [Info6, Results3]),
+   {ok, Info6} = basexerl:execute(Db, "xquery collection('database')"), 
+   io:format("~s~n", [Info6]),
    
-   {ok, Results4, Info7} = basexerl:execute(Db, "drop db database"), 
-   io:format("~s~s", [Info7, Results4]),
+   {ok, Info7} = basexerl:execute(Db, "drop db database"), 
+   io:format("~s", [Info7]),
    
    ok.
