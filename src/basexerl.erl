@@ -44,11 +44,19 @@
 %%                  connection stuff
 %% ==========================================================
 
-%% returns {ok, Pid} for the new DB connection
+%% returns {ok, Pid} for the new DB connection using default values
+-spec connect() -> {ok, pid()}.
 connect() ->
    connect([], [], [], []).
+%% returns {ok, Pid} for the new DB connection using default values for host and port
+-spec connect(User :: string(), Password :: string()) -> {ok, pid()}.
 connect(User, Pass) ->
    connect([], [], User, Pass).
+%% returns {ok, Pid} for the new DB connection using given values
+-spec connect(Host :: string(), 
+       Port :: integer(), 
+       User :: string(), 
+       Password :: string()) -> {ok, pid()}.
 connect(Host, Port, User, Pass) ->
    Host1 = bxe_util:nvl(Host, ?DEFHOST),
    Port1 = bxe_util:nvl(Port, ?DEFPORT),
@@ -57,6 +65,7 @@ connect(Host, Port, User, Pass) ->
    bxe_client:start([Host1, Port1, User1, Pass1]).
 
 %% disconnects from the DB for the given connection Pid
+-spec disconnect(Conn :: pid()) -> ok.
 disconnect(Conn) ->
     gen_server:call(Conn, disconnect).
 
@@ -65,34 +74,69 @@ disconnect(Conn) ->
 %% ==========================================================
 
 %% Executes a command and returns the result.
-%% returns {ok, Result, Info} | {error, Info}
+-spec execute(Conn :: pid(), Command :: binary() | string()) -> Results when 
+         Results :: {ok, Info} |
+           {ok, Result, Info} |
+           {error, Reason :: term()},
+         Result :: binary(),
+         Info :: binary().
 execute(Conn, Command) ->
     gen_server:call(Conn, {execute, Command}, ?TIMEOUT).
 
 %% Creates a database.
-%% returns {ok, Info} | {error, Info}
+-spec create(Conn, Name) -> Results when 
+         Conn :: pid(),
+         Name :: binary() | string(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 create(Conn, Name) ->
     create(Conn, Name, []).
+%% Creates and opens a database.
+-spec create(Conn, Name, Input) -> Results when 
+         Conn :: pid(),
+         Name :: binary() | string(),
+         Input :: binary() | string(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 create(Conn, Name, Input) ->
     gen_server:call(Conn, {create, Name, Input}, ?TIMEOUT).
 
-%% Adds a document to a database.
-%% returns {ok, Info} | {error, Info}
+%% Adds a document to the open database.
+-spec add(Conn, Path, Input) -> Results when 
+         Conn :: pid(),
+         Path :: binary() | string(),
+         Input :: binary() | string(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 add(Conn, Path, Input) ->
     gen_server:call(Conn, {add, Path, Input}, ?TIMEOUT).
 
-%% Replaces a document in a database.
-%% returns {ok, Info} | {error, Info}
+%% Replaces a document in the open database.
+-spec replace(Conn, Path, Input) -> Results when 
+         Conn :: pid(),
+         Path :: binary() | string(),
+         Input :: binary() | string(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 replace(Conn, Path, Input) ->
     gen_server:call(Conn, {replace, Path, Input}, ?TIMEOUT).
 
-%% Stores a binary resource in a database.
-%% returns {ok, Info} | {error, Info}
+%% Stores a binary resource in the open database.
+-spec store(Conn, Path, Input) -> Results when 
+         Conn :: pid(),
+         Path :: binary() | string(),
+         Input :: binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 store(Conn, Path, Input) when is_binary(Input) ->
     gen_server:call(Conn, {store, Path, Input}, ?TIMEOUT).
 
 %% Gets a binary resource from the open database.
-%% returns {ok, Binary} | {error, Info}
+-spec retrieve(Conn, Path) -> Results when 
+         Conn :: pid(),
+         Path :: binary() | string(),
+         Results :: {ok, Result} | {error, Reason :: term()},
+         Result :: binary().
 retrieve(Conn, Path) ->
     gen_server:call(Conn, {retrieve, Path}, ?TIMEOUT).
 
@@ -101,52 +145,114 @@ retrieve(Conn, Path) ->
 %%                     XQuery stuff
 %% ==========================================================
 
-%% get the ID for this query
-%% returns {ok, Qid} | {error, Info}
+%% Registers the XQuery with the server. Returns the ID for the query.
+-spec query(Conn, Query) -> Results when 
+         Conn :: pid(),
+         Query :: binary() | string(),
+         Results :: {ok, Qid} | {error, Reason :: term()},
+         Qid :: binary().
 query(Conn, Query) ->
     gen_server:call(Conn, {query, Query}, ?TIMEOUT).
 
 %% Bind a value to an external variable.
-%% Sequences for single variables should be in Name as a tuple with Name, then a list of tuples 
-%% {Value, Type} | {Value}: {"$varName", [{"123", "xs:integer"}, {"ABC"} ]}
-%% returns {ok, Info} | {error, Info}
+%% Sequences for single variables should be in tagged-tuple with Name, then a list of value tuples 
+%% {"$varName", [{"123", "xs:integer"}, {"ABC"} ]}
+-spec q_bind(Conn, Qid, NamedSequence) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         NamedSequence :: {Name :: string(), [{Value, Type} | {Value}]},
+         Value :: string() | binary(),
+         Type :: string() | binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_bind(Conn, Qid, NamedSequence) ->
     q_bind(Conn, Qid, NamedSequence, [], []).
+%% Bind a single value to an external variable.
+-spec q_bind(Conn, Qid, Name, Value) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Name :: string(),
+         Value :: string() | binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_bind(Conn, Qid, Name, Value) ->
     q_bind(Conn, Qid, Name, Value, []).
+%% Bind a single typed value to an external variable.
+-spec q_bind(Conn, Qid, Name, Value, Type) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Name :: string(),
+         Value :: string() | binary(),
+         Type :: string() | binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_bind(Conn, Qid, Name, Value, Type) ->
     gen_server:call(Conn, {q_bind, Qid, Name, Value, Type}, ?TIMEOUT).
 
-%% Bind a value to the context item.
+%% Bind a value/s to the context item.
 %% Sequences for context should be in form {context, [{Value, Type} | {Value}]}
-%% returns {ok, Info} | {error, Info}
+-spec q_context(Conn, Qid, Value) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Value :: string() | binary() | {context, [{Val, Type} | {Val}]},
+         Val :: string() | binary(),
+         Type :: string() | binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_context(Conn, Qid, Value) ->
     q_context(Conn, Qid, Value, []).
+%% Bind a typed value to the context item.
+-spec q_context(Conn, Qid, Value, Type) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Value :: string() | binary(),
+         Type :: string() | binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_context(Conn, Qid, Value, Type) ->
     gen_server:call(Conn, {q_context, Qid, Value, Type}, ?TIMEOUT).
 
-%% Return the entire result of the query.
-%% returns {ok, Result} | {error, Info}
+%% Return the entire result of the query as one value.
+-spec q_execute(Conn, Qid) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Results :: {ok, Result} | {error, Reason :: term()},
+         Result :: binary().
 q_execute(Conn, Qid) ->
     gen_server:call(Conn, {q_execute, Qid}, ?TIMEOUT).
 
-%% Returns all resulting items as strings, prefixed by a single byte (\xx) 
-%% that represents the Type ID. 
-%% returns {ok, Result} | {error, Info}
+%% Returns all resulting items of the query as a list of tuples
+%% [{Value, Type}] 
+-spec q_results(Conn, Qid) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Results :: {ok, Result} | {error, Reason :: term()},
+         Result :: [{Value :: binary(), Type :: atom()}].
 q_results(Conn, Qid) ->
     gen_server:call(Conn, {q_results, Qid}, ?TIMEOUT).
 
-%% Return query info in a string.
-%% returns {ok, Info} | {error, Info}
+%% Return query info for a given Qid.
+-spec q_info(Conn, Qid) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_info(Conn, Qid) ->
     gen_server:call(Conn, {q_info, Qid}, ?TIMEOUT).
 
-%% Return serialization parameters in a string.
-%% returns {ok, Info} | {error, Info}
+%% Return serialization parameters in place for the query.
+-spec q_options(Conn, Qid) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Results :: {ok, Info} | {error, Reason :: term()},
+         Info :: binary().
 q_options(Conn, Qid) ->
     gen_server:call(Conn, {q_options, Qid}, ?TIMEOUT).
 
-%% Closes the query. It's a good idea to do this!
-%% returns {ok, Info} | {error, Info}
+%% De-registers the query with the server. It's a good idea to do this!
+-spec q_close(Conn, Qid) -> Results when 
+         Conn :: pid(),
+         Qid :: binary(),
+         Results :: ok.
 q_close(Conn, Qid) ->
     gen_server:cast(Conn, {q_close, Qid}).
