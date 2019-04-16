@@ -20,7 +20,7 @@ run() ->
    {ok, _Info} = basexerl:q_bind(Db, Qid, {"$seq", [
                                                    {"123", "xs:integer"},
                                                    {"ABC"}
-                                                   ]}, []),
+                                                   ]}),
    
    {ok, Result} = basexerl:q_execute(Db, Qid),
    

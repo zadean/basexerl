@@ -53,8 +53,8 @@ connect() ->
 connect(User, Pass) ->
    connect([], [], User, Pass).
 %% returns {ok, Pid} for the new DB connection using given values
--spec connect(Host :: string(), 
-       Port :: integer(), 
+-spec connect(Host :: string() | [], 
+       Port :: integer() | [], 
        User :: string(), 
        Password :: string()) -> {ok, pid()}.
 connect(Host, Port, User, Pass) ->
@@ -148,7 +148,7 @@ retrieve(Conn, Path) ->
 %% Registers the XQuery with the server. Returns the ID for the query.
 -spec query(Conn, Query) -> Results when 
          Conn :: pid(),
-         Query :: binary() | string(),
+         Query :: binary() | string() | [binary()] | [string()],
          Results :: {ok, Qid} | {error, Reason :: term()},
          Qid :: binary().
 query(Conn, Query) ->
@@ -181,7 +181,7 @@ q_bind(Conn, Qid, Name, Value) ->
 -spec q_bind(Conn, Qid, Name, Value, Type) -> Results when 
          Conn :: pid(),
          Qid :: binary(),
-         Name :: string(),
+         Name :: string() | {Name :: string(), [{Value, Type} | {Value}]},
          Value :: string() | binary(),
          Type :: string() | binary(),
          Results :: {ok, Info} | {error, Reason :: term()},
@@ -205,7 +205,8 @@ q_context(Conn, Qid, Value) ->
 -spec q_context(Conn, Qid, Value, Type) -> Results when 
          Conn :: pid(),
          Qid :: binary(),
-         Value :: string() | binary(),
+         Value :: string() | binary() | {context, [{Val, Type} | {Val}]},
+         Val :: string() | binary(),
          Type :: string() | binary(),
          Results :: {ok, Info} | {error, Reason :: term()},
          Info :: binary().

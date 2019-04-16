@@ -229,7 +229,12 @@ do_execute(State, Data) ->
 do_retrieve(State, Data) ->
    Sock = State#state.socket,
    ok = write_socket(Sock, Data),
-   Raw = list_to_binary(read_socket(Sock, binary)),
+   Raw = case read_socket(Sock, binary) of
+            {error, _} = E ->
+               E;
+            L ->
+               list_to_binary(L)
+         end,
    case okay(Raw) of
        {ok, Response} ->
           % remove okay for info
@@ -278,7 +283,7 @@ do_query(State, Data, AsList) ->
                   _ ->
                      {reply, {ok, BinList}, State}
                end;
-            Error ->
+            [Error|_] ->
                Error1 = binary:part(Error, 1, byte_size(Error) -1),
                {reply, {error, Error1}, State}
          end
@@ -329,8 +334,12 @@ write_socket(Socket, Rest) ->
    write_socket(Socket, []).
 
 read_socket(Sock) ->
-   List = read_socket1(Sock, <<>>, []),
-   lists:reverse(List).
+   case read_socket1(Sock, <<>>, []) of
+      List when is_list(List) ->
+         lists:reverse(List);
+      {error, _} = Error ->
+         Error
+   end.
 
 read_socket1(Sock, TmpAcc, Acc) ->
    case gen_tcp:recv(Sock, 0, 1000) of
@@ -390,7 +399,7 @@ read_socket1(Sock, TmpAcc, Acc) ->
          end;
    {error, timeout} -> 
       prepend([TmpAcc], Acc);
-   Err -> 
+   {error, _} = Err -> 
       Err
    end.
 
@@ -431,10 +440,9 @@ is_end(Sock, _Len, _Char) ->
     end.
 
 %% get the last byte to show if ok or error
+okay({error, _} = E) -> E;
 okay(<<>>) -> 
    {error, <<"no data",1,0>>};
-okay({error, Reason}) -> 
-   {error, Reason};
 okay(Packet) -> 
    Size = byte_size(Packet),
    Stat = binary:last(Packet),
@@ -453,7 +461,7 @@ okay(Packet) ->
            {error, invalid}
    end.
 
-md5(Res1, [], User, Pass) -> 
+md5(Res1, <<>>, User, Pass) -> 
    Code = Pass,
    Nonce = Res1,
    [User,?N,md5([md5(Code) , Nonce]),?N] ;
