@@ -342,7 +342,7 @@ read_socket(Sock) ->
    end.
 
 read_socket1(Sock, TmpAcc, Acc) ->
-   case gen_tcp:recv(Sock, 0, 1000) of
+   case gen_tcp:recv(Sock, 0, ?TIMEOUT) of
       {ok, Packet} ->
          Size = byte_size(Packet),
          Tail = binary:last(Packet),
@@ -397,14 +397,14 @@ read_socket1(Sock, TmpAcc, Acc) ->
                      read_socket1(Sock, lists:last(List), NewAcc)
                end
          end;
-   {error, timeout} -> 
-      prepend([TmpAcc], Acc);
+   %{error, timeout} -> 
+   %   prepend([TmpAcc], Acc);
    {error, _} = Err -> 
       Err
    end.
 
 read_socket(Sock, binary) ->
-   case gen_tcp:recv(Sock, 0, 5000) of
+   case gen_tcp:recv(Sock, 0, ?TIMEOUT) of
       {ok, Packet} ->
          Size = byte_size(Packet),
          Tail = binary:last(Packet),
@@ -416,10 +416,10 @@ read_socket(Sock, binary) ->
             _ ->
                [Packet]
         end;
-    {error, timeout} -> 
-        [];
-    Err -> 
-        Err
+   %{error, timeout} -> 
+   %    [];
+      Err -> 
+         Err
    end.
 
 is_end(_Sock, ?BUFFER, Char) when Char =/= 0 -> 
