@@ -11,3 +11,4 @@ ebin
 _build
 *.jar
 /tmp/
+doc

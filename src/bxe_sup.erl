@@ -27,5 +27,4 @@ start_link() ->
 
 %% init/1
 init([]) ->
-    {ok,{{one_for_one,10,1}, []}}.
-
+    {ok, {{one_for_one, 10, 1}, []}}.

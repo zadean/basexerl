@@ -1,15 +1,11 @@
-
-{application, basexerl,
- [{description,  "Erlang BaseX driver"},
-  {vsn,          "0.1.1"},
-  {modules,      []},
-  {registered,   []},
-  {applications, [kernel, stdlib]},
-  {mod,          {bxe_app,[]}},
-  {env, [
-   {debug, true}
-  ]},
-  {licenses, ["BSD-3 Clause", "MIT"]},
-  {maintainers, ["zadean"]},
-  {links, [{"Github", "https://github.com/zadean/basexerl"}]}]
- }.
+{application, basexerl, [
+    {description, "Erlang BaseX driver"},
+    {vsn, "0.1.2"},
+    {modules, []},
+    {registered, []},
+    {applications, [kernel, stdlib]},
+    {mod, {bxe_app, []}},
+    {env, []},
+    {licenses, ["BSD-3-Clause", "MIT"]},
+    {links, [{"Github", "https://github.com/zadean/basexerl"}]}
+]}.

@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : bxe_app.erl
 %%% Author  : Zachary Dean <contact@zadean.com>
-%%% Purpose : 
+%%% Purpose :
 %%% Created : 17 Mar 2017 by Zachary Dean <contact@zadean.com>
 %%%----------------------------------------------------------------------
 
